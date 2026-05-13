@@ -17,6 +17,7 @@ import {
 import { useFieldArray, useFormState, useWatch } from "react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import axios, { endpoints } from "src/utils/axios";
+import { useEvalAttributesEager } from "src/hooks/use-eval-attributes";
 import _ from "lodash";
 import Iconify from "src/components/iconify";
 import FormTextFieldV2 from "src/components/FormTextField/FormTextFieldV2";
@@ -363,21 +364,14 @@ const TaskConfigPanel = ({
     enabled: !projectLocked,
   });
 
-  // Eval attributes for variable mapping. Includes rowType so the picker
-  // shows the right paths per target type — span attribute keys for spans,
-  // trace fields + spans.first/last.<key> for traces, session fields +
-  // traces.{first,last}.spans.{first,last}.<key> for sessions.
-  const { data: evalAttributes } = useQuery({
-    queryKey: ["eval-attributes", project, rowType, filtersWithoutDate],
-    queryFn: () =>
-      axios.get(endpoints.project.getEvalAttributeList(), {
-        params: {
-          project_id: project,
-          row_type: rowType,
-          filters: JSON.stringify(objectCamelToSnake(filtersWithoutDate)),
-        },
-      }),
-    select: (data) => data.data?.result,
+  // Eval attributes for variable mapping. ``rowType`` makes the picker
+  // surface row-type-correct paths (span keys / spans.<n>.<key> /
+  // traces.<i>.spans.<j>.<key>). Eager-drain pagination so the picker
+  // autocomplete has the full list at first paint.
+  const { items: evalAttributes } = useEvalAttributesEager({
+    projectId: project,
+    rowType,
+    filters: objectCamelToSnake(filtersWithoutDate),
     enabled: isProjectSelected,
   });
 

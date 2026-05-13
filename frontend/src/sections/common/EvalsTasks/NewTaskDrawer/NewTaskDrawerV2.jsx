@@ -29,6 +29,7 @@ import ScheduledRuns from "./ScheduledRuns";
 import _ from "lodash";
 import axios, { endpoints } from "src/utils/axios";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEvalAttributesEager } from "src/hooks/use-eval-attributes";
 import { formatDate } from "src/utils/report-utils";
 import { endOfToday, sub } from "date-fns";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -247,17 +248,10 @@ const NewTaskDrawerV2 = ({
   };
 
   // Fetch eval attributes for variable mapping
-  const { data: evalAttributes } = useQuery({
-    queryKey: ["eval-attributes", project, rowType, filtersWithoutDate],
-    queryFn: () =>
-      axios.get(endpoints.project.getEvalAttributeList(), {
-        params: {
-          project_id: project,
-          row_type: rowType,
-          filters: JSON.stringify(objectCamelToSnake(filtersWithoutDate)),
-        },
-      }),
-    select: (data) => data.data?.result,
+  const { items: evalAttributes } = useEvalAttributesEager({
+    projectId: project,
+    rowType,
+    filters: objectCamelToSnake(filtersWithoutDate),
     enabled: isProjectSelected,
   });
 

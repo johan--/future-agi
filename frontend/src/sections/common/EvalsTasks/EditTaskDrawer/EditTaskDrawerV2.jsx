@@ -22,6 +22,7 @@ import {
   useWatch,
 } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEvalAttributesEager } from "src/hooks/use-eval-attributes";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { enqueueSnackbar } from "notistack";
 import Iconify from "src/components/iconify";
@@ -211,16 +212,11 @@ const EditTaskDrawerV2Content = ({
   }, [configuredEvalList, replace]);
 
   // Fetch eval attributes for variable mapping
-  const { data: evalAttributes } = useQuery({
-    queryKey: ["eval-attributes", rowType, filters],
-    queryFn: () =>
-      axios.get(endpoints.project.getEvalAttributeList(), {
-        params: {
-          row_type: rowType,
-          filters: JSON.stringify(objectCamelToSnake(filters)),
-        },
-      }),
-    select: (d) => d.data?.result,
+  const { items: evalAttributes } = useEvalAttributesEager({
+    projectId: project,
+    rowType,
+    filters: objectCamelToSnake(filters),
+    enabled: !!project,
   });
 
   const sourceColumns = useMemo(() => {
