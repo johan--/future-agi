@@ -334,8 +334,16 @@ export default function TracesTab({ error }) {
             <VoiceDetailDrawerV2
               data={
                 voiceCallData
-                  ? { ...voiceCallData, project_id: projectId }
-                  : { trace_id: drawerTraceId, project_id: projectId }
+                  ? {
+                      ...voiceCallData,
+                      project_id: projectId,
+                      module: "project",
+                    }
+                  : {
+                      trace_id: drawerTraceId,
+                      project_id: projectId,
+                      module: "project",
+                    }
               }
               onClose={() => setDrawerTraceId(null)}
               onPrev={handlePrev}
