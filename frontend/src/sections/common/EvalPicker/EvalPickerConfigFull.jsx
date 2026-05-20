@@ -1758,6 +1758,8 @@ const EvalPickerConfigFull = ({ evalData, onBack, onSave, isSaving }) => {
                     model={model}
                     functionParamsSchema={functionParamsSchema}
                     configParamsDesc={configParamsDesc}
+                    codeParams={codeParams}
+                    onCodeParamsChange={setCodeParams}
                   />
                 )}
 

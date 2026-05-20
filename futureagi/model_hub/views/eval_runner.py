@@ -1919,13 +1919,21 @@ class EvaluationRunner:
         # Use eval template config with row mappings.
         required_keys = []
         optional_keys = []
+        is_user_custom_eval = False
         if getattr(self.eval_template, "config", None):
             required_keys = self.eval_template.config.get("required_keys", [])
             optional_keys = self.eval_template.config.get("optional_keys", [])
+            is_user_custom_eval = self.eval_template.config.get(
+                "custom_eval", False
+            )
 
-        # Validate mapped required/optional keys only.
+        # Validate mapped required/optional keys only. Skip for user-built
+        # custom evals so empty cells flow through to the eval (the template
+        # can define explicit handling, e.g. a "No Input" choice). This keeps
+        # the dataset path consistent with the eval playground, which never
+        # applied this row-level guard.
         keys_to_check = list(set(required_keys) | set(optional_keys))
-        if keys_to_check:
+        if keys_to_check and not is_user_custom_eval:
             for key in keys_to_check:
                 # Mapping config indicates whether the user mapped this key.
                 mapping_config = (
