@@ -349,8 +349,9 @@ const EvalCreatePage = () => {
       summary: evalType === "agent" ? summary : undefined,
       error_localizer_enabled: errorLocalizerEnabled,
       messages: evalType === "llm" ? messages : undefined,
+      // Send [] for LLM evals so the BE can persist a user-cleared list.
       few_shot_examples:
-        evalType === "llm" && fewShotExamples.length > 0
+        evalType === "llm"
           ? fewShotExamples.map((ds) => ({ id: ds.id, name: ds.name }))
           : undefined,
       template_format: templateFormat,
