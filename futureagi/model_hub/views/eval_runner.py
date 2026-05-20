@@ -1916,23 +1916,44 @@ class EvaluationRunner:
         # the emptiness check so the user gets the specific error message.
         required_keys = []
         optional_keys = []
+        is_user_custom_eval = False
         if getattr(self.eval_template, "config", None):
             required_keys = self.eval_template.config.get("required_keys", [])
             optional_keys = self.eval_template.config.get("optional_keys", [])
-
-        keys_to_check = set(required_keys) | set(optional_keys)
-        for key in keys_to_check:
-            mapping_config = (
-                mappings.get(key) if isinstance(mappings, dict) else None
+            is_user_custom_eval = self.eval_template.config.get(
+                "custom_eval", False
             )
-            if not _is_mapped(mapping_config):
-                continue
-            if key not in required_field and not _has_valid_mapping(
-                mapping_config, row.dataset_id
-            ):
-                raise ValueError(
-                    f"Invalid mapping for '{key}'. Please check your input mapping."
+
+        # Validate mapped required/optional keys only. Skip for user-built
+        # custom evals so empty cells flow through to the eval (the template
+        # can define explicit handling, e.g. a "No Input" choice). This keeps
+        # the dataset path consistent with the eval playground, which never
+        # applied this row-level guard. For custom evals the shared
+        # validator below still enforces the all-empty safety net.
+        keys_to_check = list(set(required_keys) | set(optional_keys))
+        if keys_to_check and not is_user_custom_eval:
+            for key in keys_to_check:
+                mapping_config = (
+                    mappings.get(key) if isinstance(mappings, dict) else None
                 )
+                # Skip unmapped keys.
+                if not _is_mapped(mapping_config):
+                    continue
+                # Raise if mapped key has no row value.
+                if key not in required_field:
+                    if not _has_valid_mapping(mapping_config, row.dataset_id):
+                        raise ValueError(
+                            f"Invalid mapping for '{key}'. Please check your input mapping."
+                        )
+                    raise ValueError(
+                        f"No input received for '{key}'. Please check your input."
+                    )
+                # Map back from key to row value via the ordered lists.
+                value = mapping[required_field.index(key)]
+                if _is_empty_value(value):
+                    raise ValueError(
+                        f"No input received for '{key}'. Please check your input."
+                    )
 
         # Emptiness rules live in the shared validator so dataset,
         # playground, tracing, and SDK paths apply the same logic.

@@ -49,6 +49,7 @@ import CodeEvalEditor from "./CodeEvalEditor";
 import ResizablePanels from "src/components/resizablePanels/ResizablePanels";
 import TestPlayground from "./TestPlayground";
 import CompositeDetailPanel from "./CompositeDetailPanel";
+import { buildCompositeChildConfigs } from "../Helpers/compositeRuntimeConfig";
 import EvalFeedbackTab from "./EvalFeedbackTab";
 import EvalGroundTruthTab from "./EvalGroundTruthTab";
 import EvalUsageTab from "./EvalUsageTab";
@@ -220,6 +221,23 @@ const EvalDetailPage = () => {
 
   // Version viewing state
   const [viewingVersion, setViewingVersion] = useState(null);
+
+  useEffect(() => {
+    if (!viewingVersion || !versionsData?.versions) return;
+    const fresh = versionsData.versions.find((v) => v.id === viewingVersion.id);
+    if (!fresh) return;
+    const freshFlag = fresh.is_default ?? fresh.isDefault ?? false;
+    const localFlag =
+      viewingVersion.is_default ?? viewingVersion.isDefault ?? false;
+    if (freshFlag !== localFlag) {
+      setViewingVersion((prev) =>
+        prev
+          ? { ...prev, is_default: freshFlag, isDefault: freshFlag }
+          : prev,
+      );
+    }
+  }, [versionsData, viewingVersion]);
+
   const defaultVersion = useMemo(() => {
     const list = versionsData?.versions || [];
     if (!list.length) return null;
@@ -820,6 +838,7 @@ const EvalDetailPage = () => {
         aggregation_function: compositeAggFunction,
         composite_child_axis: compositeChildAxis || undefined,
         child_template_ids: compositeChildren.map((c) => c.child_id),
+        child_configs: buildCompositeChildConfigs(compositeChildren),
         child_weights: Object.keys(weights).length > 0 ? weights : null,
       };
       const result = await updateComposite.mutateAsync(payload);
@@ -913,6 +932,7 @@ const EvalDetailPage = () => {
           aggregation_function: compositeAggFunction,
           composite_child_axis: compositeChildAxis || undefined,
           child_template_ids: compositeChildren.map((c) => c.child_id),
+          child_configs: buildCompositeChildConfigs(compositeChildren),
           child_weights: Object.keys(weights).length > 0 ? weights : null,
         });
       }
@@ -1503,7 +1523,7 @@ const EvalDetailPage = () => {
                       >
                         <Typography variant="caption">0</Typography>
                         <Slider
-                          value={passThreshold * 100}
+                          value={Math.round(passThreshold * 100)}
                           onChange={(_, val) => {
                             setPassThreshold(val / 100);
                             markDirty();
@@ -1546,7 +1566,7 @@ const EvalDetailPage = () => {
                   ))}
 
                 {/* Error Localization */}
-                {!isComposite && (
+                {!isComposite && evalType !== "code"  && (
                   <Box>
                     <FormControlLabel
                       control={
@@ -1873,7 +1893,7 @@ const EvalDetailPage = () => {
                       variant="contained"
                       size="small"
                       onClick={handleSaveVersion}
-                      disabled={isSaving}
+                      disabled={isSaving || !isDirty}
                       startIcon={
                         isSaving ? (
                           <CircularProgress size={14} />

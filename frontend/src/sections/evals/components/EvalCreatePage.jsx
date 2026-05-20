@@ -31,6 +31,7 @@ import LLMPromptEditor from "./LLMPromptEditor";
 import OutputTypeConfig from "./OutputTypeConfig";
 import ResizablePanels from "src/components/resizablePanels/ResizablePanels";
 import TestPlayground from "./TestPlayground";
+import { buildCompositeChildConfigs } from "../Helpers/compositeRuntimeConfig";
 import { useCompositeChildrenUnionKeys } from "../hooks/useCompositeChildrenKeys";
 import CodeEditor from "./CodeEditor";
 import CodeEvalEditor, {
@@ -485,6 +486,7 @@ const EvalCreatePage = () => {
         name: compositeName.trim(),
         description: compositeDescription || null,
         child_template_ids: childIds,
+        child_configs: buildCompositeChildConfigs(selectedChildren),
         aggregation_enabled: aggregationEnabled,
         aggregation_function: aggregationFunction,
         composite_child_axis: compositeChildAxis,
@@ -788,7 +790,7 @@ const EvalCreatePage = () => {
                       fontWeight={600}
                       sx={{ mb: 0.5 }}
                     >
-                      Eval Name<span style={{ color: "red" }}>*</span>
+                      Eval Name<Box component="span" sx={{ color: "error.main", ml: 0.25 }}>*</Box>
                     </Typography>
                     <TextField
                       fullWidth
@@ -979,7 +981,7 @@ const EvalCreatePage = () => {
                       >
                         <Typography variant="caption">0</Typography>
                         <Slider
-                          value={passThreshold * 100}
+                          value={Math.round(passThreshold * 100)}
                           onChange={(_, val) => setPassThreshold(val / 100)}
                           min={0}
                           max={100}
@@ -1217,6 +1219,8 @@ const EvalCreatePage = () => {
                           child_template_ids: selectedChildren.map(
                             (c) => c.child_id,
                           ),
+                          child_configs:
+                            buildCompositeChildConfigs(selectedChildren),
                           aggregation_enabled: aggregationEnabled,
                           aggregation_function: aggregationFunction,
                           composite_child_axis: compositeChildAxis || "",
