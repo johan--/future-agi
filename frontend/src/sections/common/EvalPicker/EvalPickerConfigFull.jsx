@@ -1429,6 +1429,7 @@ const EvalPickerConfigFull = ({ evalData, onBack, onSave, isSaving }) => {
                     datasetColumns={datasetColumns}
                     datasetJsonSchemas={datasetJsonSchemas}
                     disabled={isInstructionsReadOnly}
+                    modelSelectorDisabled={false}
                   />
                   <FewShotExamples
                     selectedDatasets={fewShotExamples}
