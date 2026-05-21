@@ -1449,6 +1449,7 @@ const EvalDetailPage = () => {
                       datasetColumns={datasetColumns}
                       datasetJsonSchemas={datasetJsonSchemas}
                       disabled={isSystemEval}
+                      modelSelectorDisabled={false}
                     />
                     <FewShotExamples
                       selectedDatasets={fewShotExamples}
