@@ -1,18 +1,18 @@
 """
 Tests for the dead_air_detection preprocessor.
 
-The preprocessor decodes audio with librosa on the API server and injects
-``_dead_air_*`` kwargs into the sandbox payload. The sandbox body (in
-evaluations/catalog/system_eval_code.py) just reads those numbers and
-applies user-tunable pass/fail thresholds; that logic is trivial enough
-to verify by inspection so we focus tests on the decode/SSRF path here.
+The preprocessor uses ``audio_bytes_from_url_or_base64`` (the canonical
+audio loader in tfc/utils/storage.py) to resolve the input, then decodes
+with librosa and injects ``_dead_air_*`` kwargs for the sandbox body.
+The sandbox body itself is trivial threshold logic and is verified by
+inspection.
 """
 
 from __future__ import annotations
 
 import io
 import math
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -28,19 +28,17 @@ def test_missing_audio_returns_error():
     assert out["_dead_air_error"] == "Missing input_audio"
 
 
-def test_unresolvable_input_returns_error():
-    out = preprocess_inputs("dead_air_detection", {"input_audio": "not-a-url"})
-    assert "_dead_air_error" in out
-
-
-def test_blocked_host_never_fetches():
-    with patch("evaluations.engine.preprocessing.requests.get") as mock_get:
+def test_loader_failure_returns_error():
+    with patch(
+        "tfc.utils.storage.audio_bytes_from_url_or_base64",
+        side_effect=ValueError("not a valid audio source"),
+    ):
         out = preprocess_inputs(
             "dead_air_detection",
-            {"input_audio": "http://169.254.169.254/audio.wav"},
+            {"input_audio": "not-a-url"},
         )
-        mock_get.assert_not_called()
     assert "_dead_air_error" in out
+    assert "not a valid audio source" in out["_dead_air_error"]
 
 
 def _synth_wav_bytes(duration_sec=2.0, sr=8000, silence_segments=None):
@@ -59,26 +57,11 @@ def _synth_wav_bytes(duration_sec=2.0, sr=8000, silence_segments=None):
     return buf.getvalue()
 
 
-def _mock_audio_response(body):
-    resp = MagicMock()
-    resp.status_code = 200
-    resp.headers = {"Content-Type": "audio/wav"}
-
-    def _iter(chunk_size=64 * 1024):
-        for i in range(0, len(body), chunk_size):
-            yield body[i:i + chunk_size]
-
-    resp.iter_content = _iter
-    resp.__enter__.return_value = resp
-    resp.__exit__.return_value = False
-    return resp
-
-
 def test_clean_audio_has_low_dead_air():
     body = _synth_wav_bytes(duration_sec=1.0, silence_segments=None)
     with patch(
-        "evaluations.engine.preprocessing.requests.get",
-        return_value=_mock_audio_response(body),
+        "tfc.utils.storage.audio_bytes_from_url_or_base64",
+        return_value=body,
     ):
         out = preprocess_inputs(
             "dead_air_detection",
@@ -95,8 +78,8 @@ def test_silent_audio_is_mostly_dead_air():
         silence_segments=[(0.0, 1.6)],
     )
     with patch(
-        "evaluations.engine.preprocessing.requests.get",
-        return_value=_mock_audio_response(body),
+        "tfc.utils.storage.audio_bytes_from_url_or_base64",
+        return_value=body,
     ):
         out = preprocess_inputs(
             "dead_air_detection",
@@ -105,3 +88,19 @@ def test_silent_audio_is_mostly_dead_air():
     assert "_dead_air_error" not in out
     assert out["_dead_air_percentage"] > 50.0
     assert out["_dead_air_max_gap_ms"] > 1000.0
+
+
+def test_loader_called_with_no_silence_padding():
+    """Padding short audio with synthetic silence would inflate the metric."""
+    body = _synth_wav_bytes(duration_sec=0.5)
+    with patch(
+        "tfc.utils.storage.audio_bytes_from_url_or_base64",
+        return_value=body,
+    ) as mock_loader:
+        preprocess_inputs(
+            "dead_air_detection",
+            {"input_audio": "https://example.com/short.wav"},
+        )
+    _, kwargs = mock_loader.call_args
+    assert kwargs.get("pad_silence") is False
+    assert kwargs.get("min_duration_seconds") is None

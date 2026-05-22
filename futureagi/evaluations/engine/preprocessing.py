@@ -390,74 +390,47 @@ def _preprocess_ssim(inputs):
     return inputs
 
 
-def _resolve_audio_input_to_bytes(value):
-    """Resolve an audio input (URL / data URI / local path / bytes) to raw bytes.
-
-    Returns ``(bytes, source_kind)`` on success, or ``None`` if the input is
-    empty or unreachable. SSRF guard mirrors the image path.
-    """
-    if value is None or value == "":
-        return None
-    if isinstance(value, (bytes, bytearray)):
-        return bytes(value), "bytes"
-    if not isinstance(value, str):
-        return None
-    stripped = value.strip()
-    if not stripped:
-        return None
-    if stripped.startswith("data:"):
-        try:
-            header, payload = stripped.split(",", 1)
-        except ValueError:
-            return None
-        if ";base64" in header:
-            try:
-                return base64.b64decode(payload), "data_uri"
-            except Exception:
-                return None
-        return None
-    if stripped.startswith(("http://", "https://")):
-        fetched = _fetch_url_bytes(stripped)
-        if fetched is None:
-            return None
-        data, _ = fetched
-        return data, "url"
-    if os.path.isfile(stripped):
-        try:
-            with open(stripped, "rb") as f:
-                return f.read(), "path"
-        except Exception:
-            return None
-    return None
-
-
 @register_preprocessor("dead_air_detection")
 def _preprocess_dead_air_detection(inputs):
     """Compute silence statistics on the backend so the sandbox stays audio-free.
 
     librosa lives in the API image but is not in the sandbox allowlist, and
     the sandbox has no network access — so we resolve the audio URL here,
-    decode with librosa/soundfile, and pass the derived numbers to the
-    sandbox as ``_dead_air_*`` kwargs.
+    decode with librosa, and pass the derived numbers to the sandbox as
+    ``_dead_air_*`` kwargs.
+
+    `pad_silence=False` is critical here: the canonical loader will otherwise
+    pad short clips with synthetic silence to meet the STT min-duration, which
+    would inflate the dead-air metric we're trying to measure.
     """
     audio_value = inputs.get("input_audio")
     if audio_value is None or audio_value == "":
         inputs["_dead_air_error"] = "Missing input_audio"
         return inputs
 
-    fetched = _resolve_audio_input_to_bytes(audio_value)
-    if fetched is None:
-        inputs["_dead_air_error"] = "Could not load audio input (unsupported URL, fetch blocked, or empty)"
+    try:
+        from tfc.utils.storage import audio_bytes_from_url_or_base64
+    except ImportError as e:
+        logger.warning("dead_air_preprocess_import_failed", error=str(e))
+        inputs["_dead_air_error"] = f"Audio loader unavailable: {e}"
         return inputs
 
-    audio_bytes, _ = fetched
+    try:
+        audio_bytes = audio_bytes_from_url_or_base64(
+            audio_value,
+            min_duration_seconds=None,
+            pad_silence=False,
+        )
+    except Exception as e:
+        logger.warning("dead_air_preprocess_load_failed", error=str(e))
+        inputs["_dead_air_error"] = f"Could not load audio: {e}"
+        return inputs
 
     try:
         import io
         import librosa
-        import numpy as np
     except ImportError as e:
-        logger.warning("dead_air_preprocess_import_failed", error=str(e))
+        logger.warning("dead_air_preprocess_librosa_missing", error=str(e))
         inputs["_dead_air_error"] = f"Audio analysis unavailable: {e}"
         return inputs
 
