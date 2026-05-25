@@ -14,7 +14,6 @@ logger = structlog.get_logger(__name__)
 from agentic_eval.core_evals.fi_evals import *
 from model_hub.models.choices import StatusType
 from model_hub.models.evals_metric import EvalTemplate
-from model_hub.tasks.user_evaluation import trigger_error_localization_for_span
 from sdk.utils.helpers import _get_api_call_type
 from tfc.constants.api_calls import APICallStatusChoices
 from tfc.temporal import temporal_activity
@@ -1460,7 +1459,10 @@ def _execute_evaluation(
             ).get(pk=eval_log.pk)
 
         if custom_eval_config.error_localizer:
-            from model_hub.tasks.user_evaluation import _eval_passed
+            from model_hub.tasks.user_evaluation import (
+                _eval_passed,
+                trigger_error_localization_for_span,
+            )
 
             if not _eval_passed(value):
                 trigger_error_localization_for_span(
